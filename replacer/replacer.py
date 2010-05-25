@@ -10,40 +10,127 @@ import sys
 from datetime import datetime
 from optparse import OptionParser
 
-def configure_logging(aProcessId, verbose):
+BACKUP_EXT_SUFFIX = "rbak"
 
-    # Configure the logger based on the verbose option.  All logging goes to
-    # console by default ...
-    aLogLevel = logging.INFO
-    if verbose == True:
-        aLogLevel = logging.DEBUG
+def is_blank(aString):
 
-    aLogFile = aProcessId + '-replacement.log'
-    logging.basicConfig(level=verbose and logging.DEBUG or logging.INFO,
+    if aString != None and len(aString.strip()) > 0:
+
+        return False
+
+    return True
+
+def configure_logging(aContext):
+
+    aLogFile = aContext.getProcessId() + '-replacement.log'
+    logging.basicConfig(level=aContext.isVerbose() and logging.DEBUG or logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
                         filename=aLogFile,
                         filemode='w')
 
-    #TODO Configure console logging for errors
     aConsoleHandler = logging.StreamHandler();
-    aConsoleHandler.setLevel(verbose and logging.INFO or logging.ERROR)
+    aConsoleHandler.setLevel(aContext.isVerbose() and logging.INFO or logging.ERROR)
     aConsoleHandler.setFormatter(logging.Formatter('%(message)s'))
 
     logging.getLogger('').addHandler(aConsoleHandler)
 
+safe_get = lambda aList, anIndex : anIndex < len(aList) and aList[anIndex] or None
+
+def create_context():
+
+    # Configure the  option parser to extract and control command line parsing
+    aParser = OptionParser(usage="usage: %prog [options] search_path search_text replacement_text")
+    aParser.add_option("-b", "--backup", dest="backup", action="store_true", 
+                       default=False, help="backup a file before modification in form of <filename>.<process_id>." + BACKUP_EXT_SUFFIX)
+    aParser.add_option("-v", "--verbose", dest="verbose", action="store_true",
+                       default=False, help="print additional diagnostic information regarding the utility's operation")
+
+    # Parse out the comand line options and arguments
+    (theOptions, theArguments) = aParser.parse_args()
+
+    aParser.destroy()
+
+    return Context(theOptions.verbose, theOptions.backup,
+                   safe_get(theArguments, 0),
+                   safe_get(theArguments, 1),
+                   safe_get(theArguments, 2))
+
+class Context(object):
+
+    def __init__(self, aVerboseFlag, aBackupFlag, aRootDirectory,
+theFindText, theReplacementText):
+
+        self.myProcessId = datetime.now().strftime('%m%d%Y-%H%M%S')
+        self.myVerboseFlag = aVerboseFlag
+        self.myBackupFlag = aBackupFlag
+        self.myRootDirectory = aRootDirectory
+        self.myFindText = theFindText
+        self.myReplacementText = theReplacementText
+
+    def getProcessId(self):
+
+        return self.myProcessId
+
+    def isVerbose(self):
+
+        return self.myVerboseFlag
+
+    def performBackup(self):
+
+        return self.myBackupFlag
+
+    def getRootDirectory(self):
+
+        return self.myRootDirectory
+
+    def getFindText(self):
+
+        return self.myFindText
+
+    def getReplacementText(self):
+
+        return self.myReplacementText
+
+    def validate(self):
+
+        theMessages =  [];
+
+        if is_blank(self.myRootDirectory) == True:
+
+            theMessages.append("A search path is required")
+
+        else:
+
+            if os.path.exists(self.myRootDirectory) == False:
+
+                theMessages.append("Search path " + self.myRootDirectory + " does not exist.")
+
+        if self.myFindText  == None:
+
+            theMessages.append("Search text must be specified")
+
+        if self.myReplacementText == None:
+
+            theMessages.append("Replacement text must be specified")
+
+        if self.myFindText == self.myReplacementText:
+
+            theMessages.append("The search and replacement text must differ")
+
+        return theMessages
+
 class TextReplacer:
 
-    def __init__(self, aProcessId, aBackupFlag, theFindText,
-    theReplacementText):
+    def __init__(self, aContext):
 
-        self.myProcessId = aProcessId
-        self.myBackupExt = aBackupFlag and "." + aProcessId + ".bak" or None
+        self.myBackupExt = aContext.performBackup() and "." + \
+            aContext.getProcessId() + "." + BACKUP_EXT_SUFFIX or None
 
         # Match whole word by checking before the phase -- not after.  This
         # approacj prevents the last words of sentences from getting missed
-        self.myFindExpression = re.compile(r"\b" + theFindText)
-        self.myReplacementText = theReplacementText
+        self.myFindExpression = re.compile(r"\b" + aContext.getFindText())
+        self.myReplacementText = aContext.getReplacementText()
 
     def replace(self, aDirectoryName, theFileNames):
 
@@ -51,13 +138,13 @@ class TextReplacer:
 
         # Create fully quailified paths -- ensuring we do append a redundant OS
         # separator as we build the path ...
+        theFiles = filter(lambda aFileName: not aFileName.endswith(BACKUP_EXT_SUFFIX), theFileNames)
         theFiles = map(aDirectoryName.endswith(os.sep) and
                         (lambda aFileName: aDirectoryName + aFileName) or
                         (lambda aFileName: aDirectoryName + os.sep + aFileName),
-                      theFileNames)
+                      theFiles)
         logging.debug("Scanning through %s", theFiles)
 
-        # TODO Support backups ...
         for aLine in fileinput.input(theFiles, inplace=1, backup=self.myBackupExt):
 
             # Perform the replacement and write out the results.
@@ -72,32 +159,32 @@ class TextReplacer:
 
 def main():
 
-    # Configure the  option parser to extract and control command line parsing
-    aParser = OptionParser(usage="usage: %prog [options] search_path search_text replacement_text")
-    aParser.add_option("-b", "--backup", dest="backup", action="store_true", 
-                       default=False, help="backup files before modification")
-    aParser.add_option("-v", "--verbose", dest="verbose", action="store_true",
-                       default=False, help="print additional diagnostics information regarding the utility's operation")
+    aContext = create_context()
 
-    # Parse out the comand line options and arguments
-    (theOptions, theArguments) = aParser.parse_args()
-    aParser.destroy()
+    configure_logging(aContext)
 
-    aProcessId = datetime.now().strftime('%m%d%Y-%H%M%S')
+    logging.info('Started text replacement process %s with configuration %s', 
+        aContext.getProcessId(), aContext)
 
-    configure_logging(aProcessId, theOptions.verbose)
+    theMessages = aContext.validate()
 
-    # TODO Validate that the directory exists
+    if len(theMessages) > 0:
 
-    logging.info('Started text replacement process %s with options %s on search path %s to replace %s with %s', 
-        aProcessId, theOptions, theArguments[0], theArguments[1], theArguments[2])
+        for aMessage in theMessages:
 
-    aTextReplacer = TextReplacer(aProcessId, theOptions.backup, theArguments[1], theArguments[2])
+            logging.error(aMessage)
 
-    os.path.walk(theArguments[0], 
+        return 1
+
+    aTextReplacer = TextReplacer(aContext)
+
+    # TODO Add timing
+
+    os.path.walk(aContext.getRootDirectory(),
                  lambda theArguments, aDirectoryName, theFileNames : aTextReplacer.replace(aDirectoryName, theFileNames),
                  None)
 
+    # TODO Add a completion message
 
 if __name__ == "__main__":
     sys.exit(main())
