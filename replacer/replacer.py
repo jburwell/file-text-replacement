@@ -72,7 +72,7 @@ class TextReplacer:
 
         logging.debug("Visting directory %s", aDirectoryName)
 
-        # Create full quailified paths -- ensuring we do append a redundant OS
+        # Create fully quailified paths -- ensuring we do append a redundant OS
         # separator as we build the path ...
         theFiles = map(aDirectoryName.endswith(os.sep) and
                         (lambda aFileName: aDirectoryName + aFileName) or
@@ -81,24 +81,15 @@ class TextReplacer:
         logging.debug("Scanning through %s", theFiles)
         for aLine in fileinput.input(theFiles, inplace=1):
 
-            logging.debug("Evaulating %s", aLine)
+            # Perform the replacement and write out the results.
+            aProcessedLine = self.myFindExpression.sub(self.myReplacementExpression, aLine)
+            sys.stdout.write(aProcessedLine)
 
-            # Copy the line for logging purposes
-            anOriginalLine = aLine
+            # Log changes
+            if aLine != aProcessedLine:
 
-            logging.debug("Original line before replacement %s", anOriginalLine)
-            # Perform a replacement
-            aProcessedLine = self.myFindExpression.sub(aLine, self.myReplacementExpression);
-
-            logging.debug("Processed line after replacement %s", aProcessedLine)
-            logging.debug("Original line after replacement %s", anOriginalLine)
-             print aProcessedLine
-
-            # If the line was changed, write it back out and log the change ...
-            if anOriginalLine != aProcessedLine:
-
-                logger.info("Replaced '%s' with '%s' in %s", anOriginalLine,
-aProcessedLine, fileinput.filename())
+                logging.info("Replaced line '%s' with '%s' in %s",
+aLine.replace(os.linesep, ""), aProcessedLine.replace(os.linesep, ""), fileinput.filename())
 
 if __name__ == "__main__":
     sys.exit(main())
