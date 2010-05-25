@@ -54,15 +54,15 @@ def create_context():
                    safe_get(theArguments, 1),
                    safe_get(theArguments, 2))
 
-    if is_blank(aContext.getRootDirectory()) == True:
+    if is_blank(aContext.getSearchPath()) == True:
 
        aParser.error ("A search path is required")
 
-    elif os.path.exists(aContext.getRootDirectory()) == False:
+    elif os.path.exists(aContext.getSearchPath()) == False:
 
-            aParser.error("Search path " + aContext.getRootDirectory() + " does not exist.")
+            aParser.error("Search path " + aContext.getSearchPath() + " does not exist.")
 
-    if aContext.getFindText()  == None:
+    if aContext.getSearchText()  == None:
 
         aParser.error("Search text must be specified")
 
@@ -70,7 +70,7 @@ def create_context():
 
         aParser.error("Replacement text must be specified")
 
-    if aContext.getFindText() == aContext.getReplacementText():
+    if aContext.getSearchText() == aContext.getReplacementText():
 
         aParser.error("The search and replacement text must differ")
 
@@ -78,13 +78,13 @@ def create_context():
 
 class Context(object):
 
-    def __init__(self, aVerboseFlag, aBackupFlag, aRootDirectory, theFindText, theReplacementText):
+    def __init__(self, aVerboseFlag, aBackupFlag, aSearchPath, theSearchText, theReplacementText):
 
         self.myProcessId = datetime.now().strftime('%m%d%Y-%H%M%S')
         self.myVerboseFlag = aVerboseFlag
         self.myBackupFlag = aBackupFlag
-        self.myRootDirectory = aRootDirectory
-        self.myFindText = theFindText
+        self.mySearchPath = aSearchPath
+        self.mySearchText = theSearchText
         self.myReplacementText = theReplacementText
 
     def getProcessId(self):
@@ -99,13 +99,13 @@ class Context(object):
 
         return self.myBackupFlag
 
-    def getRootDirectory(self):
+    def getSearchPath(self):
 
-        return self.myRootDirectory
+        return self.mySearchPath
 
-    def getFindText(self):
+    def getSearchText(self):
 
-        return self.myFindText
+        return self.mySearchText
 
     def getReplacementText(self):
 
@@ -116,8 +116,8 @@ class Context(object):
         return "Context: processId=" + self.myProcessId + \
             " verbose=" + str(self.myVerboseFlag) + \
             " backup=" + str(self.myBackupFlag) + \
-            " rootDirectory=" + str(self.myRootDirectory) + \
-            " findText=" + str(self.myFindText) + \
+            " rootDirectory=" + str(self.mySearchPath) + \
+            " findText=" + str(self.mySearchText) + \
             " replacementText=" + str(self.myReplacementText)
 
 class TextReplacer:
@@ -129,7 +129,7 @@ class TextReplacer:
 
         # Match whole word by checking before the phase -- not after.  This
         # approacj prevents the last words of sentences from getting missed
-        self.myFindExpression = re.compile(r"\b" + aContext.getFindText())
+        self.myFindExpression = re.compile(r"\b" + aContext.getSearchText())
         self.myReplacementText = aContext.getReplacementText()
 
     def replace(self, aDirectoryName, theFileNames):
@@ -181,7 +181,7 @@ def main():
 
         aTextReplacer = TextReplacer(aContext)
 
-        os.path.walk(aContext.getRootDirectory(), 
+        os.path.walk(aContext.getSearchPath(), 
             lambda theArguments, aDirectoryName, theFileNames : aTextReplacer.replace(aDirectoryName, theFileNames), 
             None)
 
