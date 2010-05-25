@@ -19,13 +19,56 @@ def configure_logging(aProcessId, verbose):
         aLogLevel = logging.DEBUG
 
     aLogFile = aProcessId + '-replacement.log'
-    logging.basicConfig(level=aLogLevel,
+    logging.basicConfig(level=verbose and logging.DEBUG or logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
                         filename=aLogFile,
                         filemode='w')
 
     #TODO Configure console logging for errors
+    aConsoleHandler = logging.StreamHandler();
+    aConsoleHandler.setLevel(verbose and logging.INFO or logging.ERROR)
+    aConsoleHandler.setFormatter(logging.Formatter('%(message)s'))
+
+    logging.getLogger('').addHandler(aConsoleHandler)
+
+class TextReplacer:
+
+    def __init__(self, aProcessId, aBackupFlag, theFindText,
+    theReplacementText):
+
+        self.myProcessId = aProcessId
+        self.myBackupExt = aBackupFlag and "." + aProcessId + ".bak" or None
+
+        # Match whole word by checking before the phase -- not after.  This
+        # approacj prevents the last words of sentences from getting missed
+        self.myFindExpression = re.compile(r"\b" + theFindText)
+        self.myReplacementText = theReplacementText
+
+    def replace(self, aDirectoryName, theFileNames):
+
+        logging.debug("Visting directory %s", aDirectoryName)
+
+        # Create fully quailified paths -- ensuring we do append a redundant OS
+        # separator as we build the path ...
+        theFiles = map(aDirectoryName.endswith(os.sep) and
+                        (lambda aFileName: aDirectoryName + aFileName) or
+                        (lambda aFileName: aDirectoryName + os.sep + aFileName),
+                      theFileNames)
+        logging.debug("Scanning through %s", theFiles)
+
+        # TODO Support backups ...
+        for aLine in fileinput.input(theFiles, inplace=1, backup=self.myBackupExt):
+
+            # Perform the replacement and write out the results.
+            aProcessedLine = self.myFindExpression.sub(self.myReplacementText, aLine)
+            sys.stdout.write(aProcessedLine)
+
+            # Log changes
+            if aLine != aProcessedLine:
+
+                logging.info("Replaced line '%s' with '%s' in %s", aLine.replace(os.linesep, ""),
+                        aProcessedLine.replace(os.linesep, ""), fileinput.filename())
 
 def main():
 
@@ -40,10 +83,8 @@ def main():
     (theOptions, theArguments) = aParser.parse_args()
     aParser.destroy()
 
-    # TODO Generate the process ID
     aProcessId = datetime.now().strftime('%m%d%Y-%H%M%S')
 
-    # TODO Pass in the process ID for use in the log file name
     configure_logging(aProcessId, theOptions.verbose)
 
     # TODO Validate that the directory exists
@@ -51,45 +92,12 @@ def main():
     logging.info('Started text replacement process %s with options %s on search path %s to replace %s with %s', 
         aProcessId, theOptions, theArguments[0], theArguments[1], theArguments[2])
 
-    aFindExpression = re.compile(theArguments[1])
-    aTextReplacer = TextReplacer(aProcessId, theOptions.backup, aFindExpression, theArguments[2])
+    aTextReplacer = TextReplacer(aProcessId, theOptions.backup, theArguments[1], theArguments[2])
 
     os.path.walk(theArguments[0], 
                  lambda theArguments, aDirectoryName, theFileNames : aTextReplacer.replace(aDirectoryName, theFileNames),
                  None)
 
-class TextReplacer:
-
-    def __init__(self, aProcessId, aBackupFlag, aFindExpression,
-    aReplacementExpression):
-
-        self.myProcessId = aProcessId
-        self.myBackupFlag = aBackupFlag
-        self.myFindExpression = aFindExpression
-        self.myReplacementExpression = aReplacementExpression
-
-    def replace(self, aDirectoryName, theFileNames):
-
-        logging.debug("Visting directory %s", aDirectoryName)
-
-        # Create fully quailified paths -- ensuring we do append a redundant OS
-        # separator as we build the path ...
-        theFiles = map(aDirectoryName.endswith(os.sep) and
-                        (lambda aFileName: aDirectoryName + aFileName) or
-                        (lambda aFileName: aDirectoryName + os.sep + aFileName), 
-                      theFileNames)
-        logging.debug("Scanning through %s", theFiles)
-        for aLine in fileinput.input(theFiles, inplace=1):
-
-            # Perform the replacement and write out the results.
-            aProcessedLine = self.myFindExpression.sub(self.myReplacementExpression, aLine)
-            sys.stdout.write(aProcessedLine)
-
-            # Log changes
-            if aLine != aProcessedLine:
-
-                logging.info("Replaced line '%s' with '%s' in %s",
-aLine.replace(os.linesep, ""), aProcessedLine.replace(os.linesep, ""), fileinput.filename())
 
 if __name__ == "__main__":
     sys.exit(main())
