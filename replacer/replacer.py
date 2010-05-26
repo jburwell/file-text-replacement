@@ -42,9 +42,18 @@ from timeit import Timer
 
 BACKUP_EXT_SUFFIX = "rbak"
 
+"""
+Retrieves an index from a list.  If the index is out of bounds, them None is
+returned.
+"""
 safe_get = lambda aList, anIndex : anIndex < len(aList) and aList[anIndex] or None
 
 def is_blank(aString):
+
+    """
+    Determines if a string is either None or contains no characters other than
+    spaces.
+    """
 
     if aString != None and len(aString.strip()) > 0:
 
@@ -89,11 +98,14 @@ def create_context():
            default=False, help="backup a file before modification in form of <filename>.<process_id>." + BACKUP_EXT_SUFFIX)
     aParser.add_option("-v", "--verbose", dest="verbose", action="store_true",
            default=False, help="print additional diagnostic information")
+    aParser.add_option("-o", "--output_log_file", dest="output_log_file", default=None, 
+           help="File to which to write a list of the modified files")
 
     # Parse out the comand line options and arguments
     (theOptions, theArguments) = aParser.parse_args()
 
     aContext = Context(theOptions.verbose, theOptions.backup,
+                   theOptions.output_log_file,
                    safe_get(theArguments, 0),
                    safe_get(theArguments, 1),
                    safe_get(theArguments, 2))
@@ -132,11 +144,12 @@ class Context(object):
     individual execution runs.
     """
 
-    def __init__(self, aVerboseFlag, aBackupFlag, aSearchPath, theSearchText, theReplacementText):
+    def __init__(self, aVerboseFlag, aBackupFlag, anOutputLogFile, aSearchPath, theSearchText, theReplacementText):
 
         self.myProcessId = datetime.now().strftime('%m%d%Y-%H%M%S')
         self.myVerboseFlag = aVerboseFlag
         self.myBackupFlag = aBackupFlag
+        self.myOutputLogFile = anOutputLogFile
         self.mySearchPath = aSearchPath
         self.mySearchText = theSearchText
         self.myReplacementText = theReplacementText
@@ -166,7 +179,7 @@ class Context(object):
         return self.myBackupFlag
 
     def getSearchPath(self):
-        
+
         """
         Accessor for the current search path.
         """
@@ -186,6 +199,15 @@ class Context(object):
         Accessor for the current replacement text.
         """
         return self.myReplacementText
+
+    def getOutputLogFile(self):
+
+        """
+        Accessor for the path to the output log file containing the list of
+        files modified.
+        """
+
+        return self.myOutputLogFile
 
     def __str__(self):
 
@@ -215,6 +237,11 @@ class TextReplacer:
         anExpression = "\\b" + aContext.getSearchText() + "\\b"
         self.myFindExpression = re.compile(anExpression)
         self.myReplacementText = aContext.getReplacementText()
+        self.myModifiedFiles = set()
+
+    def getModifiedFiles(self):
+
+        return self.myModifiedFiles
 
     def replace(self, aDirectoryName, theFileNames):
 
@@ -239,8 +266,10 @@ class TextReplacer:
             # Log changes
             if aLine != aProcessedLine:
 
-                logging.info("Replaced line '%s' with '%s' in %s", aLine.replace(os.linesep, ""),
-                        aProcessedLine.replace(os.linesep, ""), fileinput.filename())
+                self.myModifiedFiles.add(fileinput.filename())
+                logging.info("Replaced file %s line #%s, '%s', with '%s'",  fileinput.filename(), 
+                        fileinput.lineno(), aLine.replace(os.linesep, ""), 
+                        aProcessedLine.replace(os.linesep, ""))
 
 def main():
 
@@ -257,12 +286,29 @@ def main():
         logging.info('Started text replacement process %s with configuration %s', 
             aContext.getProcessId(), aContext)
 
+        aTextReplacer = TextReplacer(aContext)
+
         # Recursively walk the search path and replace occurences of the passed
         # search text in each file using a TextReplacer instance ...
         os.path.walk(aContext.getSearchPath(), 
             lambda theArguments, aDirectoryName, theFileNames :
-                TextReplacer(aContext).replace(aDirectoryName, theFileNames), 
+                aTextReplacer.replace(aDirectoryName, theFileNames), 
             None)
+
+        if aContext.getOutputLogFile() != None and \
+           len(aTextReplacer.getModifiedFiles()) > 0:
+
+            try:
+          
+                anOutputLogFile = open(aContext.getOutputLogFile(), "w") 
+
+                for aFile in aTextReplacer.getModifiedFiles():
+
+                    anOutputLogFile.write(aFile + os.linesep)
+
+            finally:
+
+                anOutputLogFile.close();
 
         logging.info("Completed replacement operation.")
         return 0
@@ -271,7 +317,7 @@ def main():
 
         logging.exception("An error occurred during the replacement operation")
 
-        return 2 
+        return 2
 
 if __name__ == "__main__":
     sys.exit(main())
