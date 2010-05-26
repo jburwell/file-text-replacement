@@ -21,7 +21,7 @@ file-text-replacement is licensed under the BSD license.
 Requirements
 ------------
 
-   * Python 2.5 or higher
+   * Python 2.5 or 2.6
 
 While this script should operate on Linux-based and Windows-based operating systems, it 
 has only been tested on Mac OS X 10.5.
