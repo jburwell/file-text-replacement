@@ -1,0 +1,9 @@
+play
+play.
+(play)
+play,
+[play]
+{play}
+play!
+play?
+

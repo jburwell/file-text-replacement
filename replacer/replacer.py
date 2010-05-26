@@ -1,5 +1,34 @@
 #!/usr/bin/python
 
+"""
+Copyright (c) 2010, John Burwell
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without 
+modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice, 
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice, 
+      this list of conditions and the following disclaimer in the documentation 
+      and/or other materials provided with the distribution.
+    * Neither the name of the John Burwell nor the names of its contributors 
+      may be used to endorse or promote products derived from this software 
+      without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+POSSIBILITY OF SUCH DAMAGE.
+"""
+
 import fileinput
 import logging
 import os
@@ -25,6 +54,15 @@ def is_blank(aString):
 
 def configure_logging(aContext):
 
+    """
+    Configures logging for the utility.  Log are captured in a file named
+    <process_id>.log -- allowing correlation of log information to actual runs of
+    the utility. Normally, error and information messages are sent to the log file
+    while error messages are sent to the console.   In verbose mode, error, information,
+    and debug messages are sent to the log file, and error messages are sent to the
+    console.
+    """
+
     logging.basicConfig(level=aContext.isVerbose() and logging.DEBUG or logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%a, %d %b %Y %H:%M:%S',
@@ -38,6 +76,12 @@ def configure_logging(aContext):
     logging.getLogger('').addHandler(aConsoleHandler)
 
 def create_context():
+
+    """
+    Creates the context used through the utility based on the command line
+    parameters passed.  If the command line arguments fail to validate then the
+    appliction will abend and display a standard usage message.
+    """
 
     # Configure the  option parser to extract and control command line parsing
     aParser = OptionParser(usage="usage: %prog [options] search_path search_text replacement_text")
@@ -60,23 +104,33 @@ def create_context():
 
     elif os.path.exists(aContext.getSearchPath()) == False:
 
-            aParser.error("Search path " + aContext.getSearchPath() + " does not exist.")
+       aParser.error("Search path " + aContext.getSearchPath() + " does not exist.")
 
     if aContext.getSearchText()  == None:
 
-        aParser.error("Search text must be specified")
+       aParser.error("Search text must be specified")
 
     if aContext.getReplacementText() == None:
 
-        aParser.error("Replacement text must be specified")
+       aParser.error("Replacement text must be specified")
 
     if aContext.getSearchText() == aContext.getReplacementText():
 
-        aParser.error("The search and replacement text must differ")
+       aParser.error("The search and replacement text must differ")
 
     return aContext
 
 class Context(object):
+
+    """
+    The value object containing runtime context for the utility.  A class is
+    preferred over a tuple or passing flags around in order to gain expressiveness
+    and extensibility without breaking internal contracts.
+
+    All executions of the utility create a unique process id in order to
+    provide a correlation identifier and distinguish logs and backup files for
+    individual execution runs.
+    """
 
     def __init__(self, aVerboseFlag, aBackupFlag, aSearchPath, theSearchText, theReplacementText):
 
@@ -89,26 +143,48 @@ class Context(object):
 
     def getProcessId(self):
 
+        """
+        Accessor for the current process ID.
+        """
+
         return self.myProcessId
 
     def isVerbose(self):
+
+        """
+        Accessor for the flag indicating whether or not execution is verbose.
+        """
 
         return self.myVerboseFlag
 
     def performBackup(self):
 
+        """
+        Accessor indicating whether or not a backup files should be created.
+        """
+
         return self.myBackupFlag
 
     def getSearchPath(self):
+        
+        """
+        Accessor for the current search path.
+        """
 
         return self.mySearchPath
 
     def getSearchText(self):
 
+        """
+        Accessor for the current search text.
+        """
         return self.mySearchText
 
     def getReplacementText(self):
 
+        """
+        Accessor for the current replacement text.
+        """
         return self.myReplacementText
 
     def __str__(self):
@@ -122,14 +198,22 @@ class Context(object):
 
 class TextReplacer:
 
+    """
+    Replaces all occurences of a whole word in a directory of files.  It ignores
+    backup files created by this utility, and will optionally, create backups of
+    files.
+    """
+
     def __init__(self, aContext):
 
+        # Backup files for a particular run of the utility will not clober
+        # backups from previous runs ...
         self.myBackupExt = aContext.performBackup() and "." + \
             aContext.getProcessId() + "." + BACKUP_EXT_SUFFIX or None
 
-        # Match whole word by checking before the phase -- not after.  This
-        # approacj prevents the last words of sentences from getting missed
-        self.myFindExpression = re.compile(r"\b" + aContext.getSearchText())
+        # Match words respecting punctionation
+        anExpression = "\\b" + aContext.getSearchText() + "\\b"
+        self.myFindExpression = re.compile(anExpression)
         self.myReplacementText = aContext.getReplacementText()
 
     def replace(self, aDirectoryName, theFileNames):
@@ -158,42 +242,36 @@ class TextReplacer:
                 logging.info("Replaced line '%s' with '%s' in %s", aLine.replace(os.linesep, ""),
                         aProcessedLine.replace(os.linesep, ""), fileinput.filename())
 
-class Usage(Exception):
-
-    def __init__(self, theMessages):
-
-        self.msg = (len(theMessages) > 0) and (lambda :
-os.linesep.join(theMessages)) or ""
-
-
 def main():
 
-
+    # Spin up the execution context.  It is outside the try block because it
+    # has its own error handling and exit procedure ...
     aContext = create_context()
 
     try:
 
+        # Spin up the logging framework and recording the initial state --
+        # placing the process id the log to support diagnostic efforts ...
         configure_logging(aContext)
 
         logging.info('Started text replacement process %s with configuration %s', 
             aContext.getProcessId(), aContext)
 
-
-        aTextReplacer = TextReplacer(aContext)
-
+        # Recursively walk the search path and replace occurences of the passed
+        # search text in each file using a TextReplacer instance ...
         os.path.walk(aContext.getSearchPath(), 
-            lambda theArguments, aDirectoryName, theFileNames : aTextReplacer.replace(aDirectoryName, theFileNames), 
+            lambda theArguments, aDirectoryName, theFileNames :
+                TextReplacer(aContext).replace(aDirectoryName, theFileNames), 
             None)
+
+        logging.info("Completed replacement operation.")
+        return 0
 
     except:
 
         logging.exception("An error occurred during the replacement operation")
+
         return 2 
-
-    else:
-
-        logging.info("Completed replacement operation.")
-        return 0
 
 if __name__ == "__main__":
     sys.exit(main())

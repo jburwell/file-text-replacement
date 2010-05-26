@@ -1,0 +1,51 @@
+Introduction
+------------
+
+file-text-replacement is a Python script that performs whole word replacement recursively
+over a directory tree.  In order to ensure the integrity of its backup and log files across
+multiple execution runs, the script creates a unique process id which is used in all log
+file and backup file names.  This process id also provides traceability across execution
+runs to support diagnostic activities.
+
+The process id is created from by concatenating the current two-digit month, two-digit day, 
+four-digit year together with the current two-digit hour, two-digit minute, and two-digit
+second separated by a dash.  
+
+N.B.  All search operations performed by this utility are case sensitive
+
+License
+-------
+
+file-text-replacement is licensed under the BSD license.
+
+Requirements
+------------
+
+   * Python 2.5 or higher
+
+While this script should operate on Linux-based and Windows-based operating systems, it 
+has only been tested on Mac OS X 10.5.
+
+Operation
+---------
+
+The script is executed using the following command line template:
+
+   python replacer/replacer.py [options] search_path search_text replacement_text
+
+The script requires the following arguments:
+
+  * A search path which serves as the root of the scripts search and replace operations
+  * The search text to be replaced
+  * The replacement text for the search text
+
+The script also supports the following commmand line switches:
+
+  * -b: Create a backup of each file
+  * -v: Output verbose diagnostic information to the log
+
+Each execution of the script yields a log file named <process id>-replacement.log in the 
+execution directory.  Backup files are named <file name>.<process id>.rbak and are placed 
+in the same directory as the original. The script does _not_ process files with the
+.rbak file extension.
+
