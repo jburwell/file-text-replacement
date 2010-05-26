@@ -56,12 +56,12 @@ Note
 This script was written to complete a programming challenge for a prospective employer
 that was defined as follows:
 
-	a. The Program will allow these arguments:
-    	i. A path to a directory of files.
+    a. The Program will allow these arguments:
+        i. A path to a directory of files.
         ii. A original text or pattern which will replace the original one if found in the files (as many times as it was found).
         iii. A new text or pattern which will replace the original one if found in the file (as many times as it was found).
-	b. Optionally, the class might also get an argument for a path to a file for outputting a list of which files were modified.
-	c. Add comments to your class.
-	d. Extra points if you back up the original file before replacing the text.
-	e. Extra points if you implement some simple and creative logging (start time, errors, end time, pattern found and where, etc)
+    b. Optionally, the class might also get an argument for a path to a file for outputting a list of which files were modified.
+    c. Add comments to your class.
+    d. Extra points if you back up the original file before replacing the text.
+    e. Extra points if you implement some simple and creative logging (start time, errors, end time, pattern found and where, etc)
 
